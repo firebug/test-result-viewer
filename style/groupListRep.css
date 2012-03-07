@@ -1,0 +1,72 @@
+/* See license.txt for terms of usage */
+
+.groupTable {
+    overflow: hidden;
+    font-family: Lucida Grande, Tahoma, sans-serif;
+    font-size: 11px;
+}
+
+.testGroupCol {
+    white-space:nowrap;
+    padding-left: 10px;
+}
+
+.failures .testGroupCol {
+    cursor:pointer;
+}
+
+.testGroupCol.groupName {
+    padding-left: 0;
+}
+
+.testGroupRow {
+    height:17px;
+}
+
+.testGroupName {
+    padding-left: 18px;
+    font-weight: bold;
+}
+
+.failures .testGroupName {
+    background-image: url(twistyClosed.png);
+    background-repeat: no-repeat;
+    background-position: 2px 1px;
+}
+
+.failures.opened > .testGroupCol > .testGroupName {
+    background-image: url(twistyOpen.png);
+}
+
+.testGroupCount {
+    color: green;
+}
+
+.failures .testGroupCount {
+    color: #DD467B;
+}
+
+.crash .testGroupCount {
+    color: red;
+}
+
+.testGroupInfo {
+    color: gray;
+}
+
+.groupBodyCol {
+    padding-left: 18px;
+}
+
+/************************************************************************************************/
+
+.groupBodyDefault {
+    background: url(ajax-loader.gif) no-repeat scroll 0 0 transparent;
+    width: 16px;
+    height: 16px;
+}
+
+/* Colorize group if there is a failing tests inside */
+.testGroupRow.error {
+    color: red;
+}

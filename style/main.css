@@ -1,0 +1,56 @@
+/* See license.txt for terms of usage */
+
+#description {
+    padding-left: 8px;
+    padding-bottom: 8px;
+}
+
+#testResults {
+    font-family: helvetica,sans-serif;
+    font-size: 62.5%;
+}
+
+/*************************************************************************************************/
+/* Tab View */
+
+.tabHomeBody,
+.tabUsersBody,
+.tabFailuresBody {
+    padding: 7px;
+}
+
+.tabHomeHeader {
+    padding-bottom: 7px;
+}
+
+/*************************************************************************************************/
+/* Group Detail View */
+
+.groupView {
+    border-top: 1px solid #D7D7D7;
+    background-color: #FFFFFF;
+    padding: 7px;
+    font-size: 11px;
+}
+
+.groupViewHeader .paramName {
+    font-weight: bold;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.groupViewHeader .paramValue {
+    text-align: left;
+    padding-left: 10px;
+}
+
+/*************************************************************************************************/
+/* Failures */
+
+.failuresCountCol {
+    text-align: right;
+}
+
+.failuresCountCol > SPAN {
+    padding-right: 15px;
+}
