@@ -112,8 +112,9 @@ this.Link = domplate(this.Rep,
         if (typeof(object) == "object")
         {
             version = object.Firebug.substr(0, 3);
-            return "https://getfirebug.com/tests/content/branches/" + version +
-                "/" + this.getTitle(object);
+            //return "https://getfirebug.com/tests/content/branches/" + version +
+            //    "/" + this.getTitle(object);
+            return "https://getfirebug.com/tests/head/" + this.getTitle(object);
         }
 
         return "";
