@@ -24,7 +24,10 @@ CDB.FirebugDB = extend(CDB.Module,
             dbURI = CDB.getURLParameter("db");
 
         if (!dbURI)
-            dbURI = "http://brasstacks.mozilla.com/couchdb";
+        {
+            //dbURI = "http://brasstacks.mozilla.com/couchdb";
+            dbURI = "http://firebug.couchone.com/";
+        }
 
         if (!dbName)
             dbName = "firebug";
