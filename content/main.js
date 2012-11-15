@@ -49,7 +49,8 @@ CDB.Main.TabView = domplate(CDB.Reps.TabView,
                 OPTION({selected: true}, "10"),
                 OPTION("20"),
                 OPTION("50"),
-                OPTION("100")
+                OPTION("100"),
+                OPTION("500")
             )
         ),
 
