@@ -30,7 +30,7 @@ CDB.FirebugDB = extend(CDB.Module,
         }
 
         if (!dbName)
-            dbName = "firebug";
+            dbName = "firebug2";
 
         $.couch.urlPrefix = dbURI;
         this.db = $.couch.db(dbName);
