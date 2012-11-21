@@ -1,0 +1,80 @@
+CouchDB Design Documents
+========================
+
+New CouchDB for Firebug test-result needs to be poroply configured. The following
+design documents need to be created:
+
+
+* Use "Temporary View..." when creating these documents in new DB.
+* Copy only "views" section to the temporary view in the target DB.
+
+== _design/allfailures ==
+{
+   "_id": "_design/allfailures",
+   "_rev": "2-9471e78a7a71e3a1f7d725b085b42ae2",
+   "language": "javascript",
+   "views": {
+       "allfailures": {
+           "map": "function(doc)\n{\n  if (doc.type == \"result\" && doc.result == \"TEST-UNEXPECTED-FAIL\")\n    emit(doc.file, doc);\n}",
+           "reduce": "function(keys, values, rereduce) {\n  var output = {\n    count: 0,\n    file: null,\n  };\n\n  if (rereduce)\n  {\n    for (idx in values)\n    {\n      var doc = values[idx];\n      if (doc.count !== undefined)\n        output.count += doc.count;\n    }\n  }\n  else\n  {\n    for (idx in values)\n    {\n      var doc = values[idx];\n      output.count += 1;\n      output.file = doc.file;\n    }\n  }\n  return output;\n}"
+       }
+   }
+}
+
+== _design/resultviews ==
+{
+   "_id": "_design/resultviews",
+   "_rev": "2-24dbd64ef6270c4922bbf82161740661",
+   "language": "javascript",
+   "lists": {
+       "json": "function(head, req) { start({'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type' : 'application/json'}}); send('['); var row; var firstRow = true; while(row = getRow()) { if (!firstRow) send(','); send(JSON.stringify(row)); firstRow = false; } send(']'); }"
+   },
+   "views": {
+       "allresults": {
+           "map": "function(doc)\n{\n  if (doc.type == 'result')\n     emit([doc.headerid, doc._id], doc);\n}"
+       },
+       "allheaders": {
+           "map": "function(doc)\n{\n  if (doc.type == 'header')\n     emit(doc._id, doc);\n}"
+       },
+       "results_by_header": {
+           "map": "function(doc)\n{\n  if ((doc.type == 'result' || doc.type == 'user-result') &&\n    doc.result == 'TEST-UNEXPECTED-FAIL')\n  {\n      emit(doc.headerid, doc);\n  }\n}"
+       },
+       "headers": {
+           "map": "function(doc) {\n  var date = (new Date(doc['Export Date'])).getTime();\n  if (doc.type == 'result') {\n    emit(date, doc);\n  } else if (doc.type == 'header') {\n    emit(date, doc);\n  }\n}",
+           "reduce": "function(keys, values, rereduce) {\n  var output = {\n    failures: 0,\n    knownFailures: 0,\n    passes: 0,\n    testCount: 0,\n    doc: 0\n  };\n  if (rereduce) {\n    for (idx in values) {\n      var doc = values[idx];\n      if (doc.failures !== undefined)\n        output.failures += doc.failures;\n      if (doc.knownFailures !== undefined)\n        output.knownFailures += doc.knownFailures;\n      if (doc.passes !== undefined)\n        output.passes += doc.passes;\n      if (doc.testCount !== undefined)\n        output.testCount += doc.testCount;\n\n      if (typeof(doc.doc) != \"undefined\")\n        output.doc = doc.doc;\n    }\n  } else {\n    for (idx in values) {\n      var doc = values[idx];\n      if (doc.type == 'header') {\n        output.doc = {\n            '_id': doc._id,\n            'Export Date': doc['Export Date'],\n            'Total Tests': doc['Total Tests'],\n            'Firebug': doc.Firebug,\n            'App Name': doc['App Name'],\n            'App Version': doc['App Version'],\n            'OS Name': doc['OS Name'] + \" \" + doc['OS Detailed Name'],\n        };\n      }\n      else if (doc.type == 'result') {\n        output.testCount += 1;\n\n\tif (doc.result == 'TEST-UNEXPECTED-FAIL')\n          output.failures += 1;\n        else if (doc.result == 'TEST-KNOWN-FAIL')\n          output.knownFailures += 1;\n        else if (doc.result == 'TEST-PASS')\n          output.passes += 1;\n      }\n    }\n  }\n  return output;\n}"
+       },
+       "header": {
+           "map": "function(doc) {\n  if (doc.type == 'header')\n    emit(doc._id, doc);\n  else if (doc.type == 'result')\n    emit(doc.headerid, doc);  \n}\n"
+       },
+       "user-header": {
+           "map": "function(doc) {\n  if (doc.type == 'user-header')\n    emit(doc._id, doc);\n  else if (doc.type == 'user-result')\n    emit(doc.headerid, doc);  \n}\n"
+       },
+       "user-headers": {
+           "map": "function(doc) {\n  var date = (new Date(doc['Export Date'])).getTime();\n  if (doc.type == 'user-result') {\n    if (doc.result == 'TEST-UNEXPECTED-FAIL')\n      emit(date, doc);\n  } else if (doc.type == 'user-header') {\n    emit(date, doc);\n  }\n}",
+           "reduce": "function(keys, values, rereduce) {\n  var output = {failures: 0, doc: 0};\n  if (rereduce) {\n    for (idx in values) {\n      if (values[idx].failures !== undefined)\n        output.failures += values[idx].failures;\n      if (values[idx].doc !== undefined)\n        output.doc = values[idx].doc;\n    }\n  } else {\n    for (idx in values) {\n      if (values[idx].type == 'user-header') {\n        var doc = values[idx];\n        output.doc = {\n            '_id': doc._id,\n            'Export Date': doc['Export Date'],\n            'Total Tests': doc['Total Tests'],\n            'Firebug': doc.Firebug,\n            'App Name': doc['App Name'],\n            'App Version': doc['App Version'],\n            'OS Name': doc['OS Name'] + \" \" + doc['OS Detailed Name'],\n        };\n      }\n      else if (values[idx].type == 'user-result') {\n        output.failures += 1;\n      }\n    }\n  }\n  return output;\n}"
+       },
+       "user-results_by_header": {
+           "map": "function(doc) {\n  if (doc.type == 'user-result' &&\n      doc.result == 'TEST-UNEXPECTED-FAIL')\n    emit(doc.headerid, doc);\n}"
+       },
+       "allcrashes": {
+           "map": "function(doc) {\n  if (doc.type == 'crash')\n     emit(doc._id, doc);\n}"
+       },
+       "allfailures": {
+           "map": "function(doc)\n{\n  var date = (new Date(doc['Export Date'])).getTime();\n\n  if ((doc.type == \"result\" || doc.type == \"user-result\") &&\n    doc.result == \"TEST-UNEXPECTED-FAIL\")\n  {\n    emit(date, doc.file);\n  }\n}"
+       }
+   }
+}
+
+== _design/testviews ==
+{
+   "_id": "_design/testviews",
+   "_rev": "1-6fe6e4ce8640d03447f2d8f426d55201",
+   "language": "javascript",
+   "views": {
+       "allfailures": {
+           "map": "function(doc)\n{\n  if ((doc.type == \"result\" || doc.type == \"user-result\") &&\n    doc.result == \"TEST-UNEXPECTED-FAIL\")\n  {\n    emit(doc.file, 1);\n  }\n}",
+           "reduce": "function(keys, values, rereduce) {\n   return sum(values);\n}"
+       }
+   }
+}
+
