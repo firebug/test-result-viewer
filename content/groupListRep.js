@@ -19,6 +19,11 @@ CDB.Reps.GroupList = domplate(Reps.Rep,
                             )
                         ),
                         TD({"class": "testGroupCol"},
+                            SPAN({"class": "testSectionTitle"},
+                                "$group|getSectionTitle"
+                            )
+                        ),
+                        TD({"class": "testGroupCol"},
                             SPAN({"class": "testGroupCount"},
                                 "$group|getGroupCount"
                             )
@@ -41,15 +46,21 @@ CDB.Reps.GroupList = domplate(Reps.Rep,
 
     groupBodyTag:
         TR({"class": "groupBodyRow", _repObject: "$group"},
-            TD({"class": "groupBodyCol", colspan: 4},
+            TD({"class": "groupBodyCol", colspan: 5},
                 DIV({"class": "groupBodyDefault"})
             )
         ),
 
     getGroupName: function(group)
     {
-        var date = new Date(group.value.doc['Export Date']);
+        var date = new Date(group.value.doc["Export Date"]);
         return date.toLocaleString();
+    },
+
+    getSectionTitle: function(group)
+    {
+        var title = group.value.doc["Section Title"];
+        return title ? title : "";
     },
 
     hasFailures: function(group)
