@@ -47,8 +47,8 @@ CDB.Main.TabView = domplate(CDB.Reps.TabView,
             SPAN("Number of displayed measurements: "), //xxxHonza: localization
             SELECT({"class": "queryLimit", onchange: "$onLimitChange"},
                 OPTION("10"),
-                OPTION({selected: true}, "20"),
-                OPTION("50"),
+                OPTION("20"),
+                OPTION({selected: true}, "50"),
                 OPTION("100"),
                 OPTION("500")
             )
