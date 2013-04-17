@@ -25,8 +25,11 @@ CDB.FirebugDB = extend(CDB.Module,
 
         if (!dbURI)
         {
-            //dbURI = "http://brasstacks.mozilla.com/couchdb";
-            dbURI = "http://firebug.couchone.com/";
+            // dbURI = "http://brasstacks.mozilla.com/couchdb";
+            // Use iriscouch.com domain instead couchone.com to get valid certificate.
+            // Due to "Mixed Content Blocking" feature introduced in Firefox 23 the
+            // database XHR must use https (since perch on getfirebug.com uses https).
+            dbURI = "https://firebug.iriscouch.com/";
         }
 
         if (!dbName)
