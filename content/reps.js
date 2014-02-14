@@ -126,7 +126,7 @@ this.Link = domplate(this.Rep,
             return object.file + "";
 
         return object + "";
-    }
+    },
     
     getTitle: function(object)
     {
