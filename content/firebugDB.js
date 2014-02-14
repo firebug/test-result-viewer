@@ -203,6 +203,7 @@ CDB.FirebugDB = extend(CDB.Module,
                 (doc.result == "TEST-UNEXPECTED-FAIL" || doc.result == "TEST-KNOWN-FAIL"))
             {
                 emit(doc.file, {
+                    test: doc.test,
                     file: doc.file,
                     desc: doc.description,
                     result: doc.result});

@@ -111,20 +111,28 @@ this.Link = domplate(this.Rep,
         var version = object;
         if (typeof(object) == "object")
         {
-            version = object.Firebug.substr(0, 3);
+            //version = object.Firebug.substr(0, 3);
             //return "https://getfirebug.com/tests/content/branches/" + version +
             //    "/" + this.getTitle(object);
-            return "https://getfirebug.com/tests/head/" + this.getTitle(object);
+            return "https://getfirebug.com/tests/head/" + this.getLink(object);
         }
 
         return "";
     },
 
-    getTitle: function(object)
+    getLink: function(object)
     {
         if (typeof(object) == "object")
             return object.file + "";
 
+        return object + "";
+    }
+    
+    getTitle: function(object)
+    {
+        if (typeof(object) == "object")
+            return (object.test ? object.test : object.file) + "";
+        
         return object + "";
     }
 });
