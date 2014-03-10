@@ -114,6 +114,7 @@ CDB.Reps.GroupList = domplate(Reps.Rep,
     getGroupInfo: function(group)
     {
         var doc = group.value.doc;
+        console.log(doc);
         var osName = doc["OS Detailed Name"];
         if (!osName)
             osName = (doc["OS Platform"] || doc["OS Name"]) + " " + doc["OS Version"];
