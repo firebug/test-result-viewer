@@ -3,7 +3,6 @@
 .progressList {
     background-repeat: no-repeat;
     background-position: 2px 3px;
-    padding-left: 18px;
 }
 
 .progressList.hasProgress > .twisty {
