@@ -11,9 +11,10 @@ CDB.ns(function() { with (CDB) { with (Domplate) {
 CDB.Reps.ProgressList = domplate(Reps.Rep,
 {
     tag:
-        DIV({"class": "progressList", onclick: "$onClick",
+        DIV({"class": "progressList",
             $hasProgress: "$object|hasProgress",
             _repObject: "$object"},
+            SPAN({"class": "twisty"}, onclick: "$onClick"),
             TAG("$CDB.Reps.Link.tag", {object: "$object"})
         ),
 

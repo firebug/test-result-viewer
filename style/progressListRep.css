@@ -6,11 +6,15 @@
     padding-left: 18px;
 }
 
-.progressList.hasProgress {
-    background-image: url(twistyClosed.png);
+.progressList.hasProgress > .twisty {
+    display: inline-block;
+    height: 12px;
+    width: 12px;
+    margin-right: 3px;
+    background: url(twistyClosed.png) no-repeat;
+    vertical-align: middle;
 }
 
-.progressList.hasProgress.opened {
+.progressList.hasProgress.opened > .twisty {
     background-image: url(twistyOpen.png);
 }
-
