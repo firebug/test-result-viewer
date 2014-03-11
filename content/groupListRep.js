@@ -114,13 +114,9 @@ CDB.Reps.GroupList = domplate(Reps.Rep,
     getGroupInfo: function(group)
     {
         var doc = group.value.doc;
-        console.log(doc);
-        var osName = doc["OS Detailed Name"];
-        if (!osName)
-            osName = (doc["OS Platform"] || doc["OS Name"]) + " " + doc["OS Version"];
-
-        return "Firebug " + doc["Firebug"] + ", " +
-            doc["App Name"] + " " + doc["App Version"] + ", " + osName;
+        return "Firebug " + doc['Firebug'] + ", " +
+            doc['App Name'] + " " + doc['App Version'] + ", " +
+            doc['OS Name'];
     },
 
     getGroupTooltip: function(group)
