@@ -14,7 +14,7 @@ CDB.Reps.ProgressList = domplate(Reps.Rep,
         DIV({"class": "progressList",
             $hasProgress: "$object|hasProgress",
             _repObject: "$object"},
-            SPAN({"class": "twisty"}, onclick: "$onClick"),
+            SPAN({"class": "twisty", onclick: "$onClick"}),
             TAG("$CDB.Reps.Link.tag", {object: "$object"})
         ),
 
