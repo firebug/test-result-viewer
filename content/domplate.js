@@ -101,21 +101,21 @@ DomplateTag.prototype =
             var val = parseValue(args[name]);
             readPartNames(val, this.vars);
 
-            if (name.indexOf("on") == 0)
+            if (name.lastIndexOf("on", 0) == 0)
             {
-                var eventName = $.browser.msie ? name : name.substr(2);
+                var eventName = name.substr(2);
                 if (!this.listeners)
                     this.listeners = [];
                 this.listeners.push(eventName, val);
             }
-            else if (name.indexOf("_") == 0)
+            else if (name[0] == "_")
             {
                 var propName = name.substr(1);
                 if (!this.props)
                     this.props = {};
                 this.props[propName] = val;
             }
-            else if (name.indexOf("$") == 0)
+            else if (name[0] == "$")
             {
                 var className = name.substr(1);
                 if (!this.classes)
@@ -124,7 +124,7 @@ DomplateTag.prototype =
             }
             else
             {
-                if (name == "class" && name in this.attrs)
+                if (name == "class" && this.attrs.hasOwnProperty(name))
                     this.attrs[name] += " " + val;
                 else
                     this.attrs[name] = val;
