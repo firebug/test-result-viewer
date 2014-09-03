@@ -1,8 +1,8 @@
 /* See license.txt for terms of usage */
 
-Domplate = {};
+var Domplate = {};
 
-(function(){
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 function DomplateTag(tagName)
 {
@@ -19,11 +19,14 @@ function DomplateLoop()
 {
 }
 
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
 var womb = null;
+var uid = 0;
 
 var domplate = function()
 {
-    var lastSubject;
+    var lastSubject = null;
     for (var i = 0; i < arguments.length; ++i)
         lastSubject = lastSubject ? copyObject(lastSubject, arguments[i]) : arguments[i];
 
@@ -31,7 +34,19 @@ var domplate = function()
     {
         var val = lastSubject[name];
         if (isTag(val))
+        {
+            if (val.tag.subject)
+            {
+                // Clone the entire domplate tag, e.g. DIV(), that is derived from
+                // an existing template. This allows to hold correct 'subject'
+                // reference that is used when executing callbacks implemented by
+                // templates. Note that 'subject' points to the current template object.
+                // See issue: http://code.google.com/p/fbug/issues/detail?id=4425
+                lastSubject[name] = val = copyObject({}, val);
+                val.tag = copyObject({}, val.tag);
+            }
             val.tag.subject = lastSubject;
+        }
     }
 
     return lastSubject;
@@ -48,7 +63,6 @@ domplate.context = function(context, fn)
 this.domplate = domplate;
 this.create = domplate;
 
-
 this.TAG = function()
 {
     var embed = new DomplateEmbed();
@@ -63,12 +77,20 @@ this.FOR = function()
 
 DomplateTag.prototype =
 {
+    /**
+     * Initializer for DOM templates. Called to create new Functions objects like TR, TD,
+     * OBJLINK, etc. See defineTag
+     *
+     * @param args keyword argments for the template, the {} brace stuff after the tag name,
+     *      eg TR({...}, TD(...
+     * @param oldTag a nested tag, eg the TD tag in TR({...}, TD(...
+     */
     merge: function(args, oldTag)
     {
         if (oldTag)
             this.tagName = oldTag.tagName;
 
-        this.context = oldTag ? oldTag.context : null;
+        this.context = oldTag ? oldTag.context : null;  // normally null on construction
         this.subject = oldTag ? oldTag.subject : null;
         this.attrs = oldTag ? copyObject(oldTag.attrs) : {};
         this.classes = oldTag ? copyObject(oldTag.classes) : {};
@@ -80,7 +102,8 @@ DomplateTag.prototype =
         var attrs = args.length ? args[0] : null;
         var hasAttrs = typeof(attrs) == "object" && !isTag(attrs);
 
-        this.children = [];
+        // Do not clear children, they can be copied from the oldTag.
+        //this.children = [];
 
         if (domplate.topContext)
             this.context = domplate.topContext;
@@ -139,42 +162,41 @@ DomplateTag.prototype =
 
         this.compileMarkup();
         this.compileDOM();
-
-        //ddd(this.renderMarkup);
-        //ddd(this.renderDOM);
-        //ddd(this.domArgs);
     },
 
     compileMarkup: function()
     {
         this.markupArgs = [];
         var topBlock = [], topOuts = [], blocks = [], info = {args: this.markupArgs, argIndex: 0};
-        //this.addLocals(blocks);
+
         this.generateMarkup(topBlock, topOuts, blocks, info);
         this.addCode(topBlock, topOuts, blocks);
 
         var fnBlock = ['(function (__code__, __context__, __in__, __out__'];
         for (var i = 0; i < info.argIndex; ++i)
             fnBlock.push(', s', i);
-        fnBlock.push(') {');
+        fnBlock.push(') {\n');
 
         if (this.subject)
-            fnBlock.push('with (this) {');
+            fnBlock.push('with (this) {\n');
         if (this.context)
-            fnBlock.push('with (__context__) {');
-        fnBlock.push('with (__in__) {');
+            fnBlock.push('with (__context__) {\n');
+        fnBlock.push('with (__in__) {\n');
 
         fnBlock.push.apply(fnBlock, blocks);
 
         if (this.subject)
-            fnBlock.push('}');
+            fnBlock.push('}\n');
         if (this.context)
-            fnBlock.push('}');
+            fnBlock.push('}\n');
 
-        fnBlock.push('}})');
+        fnBlock.push('}})\n');
 
         function __link__(tag, code, outputs, args)
         {
+            if (!tag || !tag.tag)
+                return;
+
             tag.tag.compile();
 
             var tagOutputs = [];
@@ -208,19 +230,35 @@ DomplateTag.prototype =
             return String(value).replace(/[<>&"']/g, replaceChars);
         }
 
+        function __attr__(name, valueParts)
+        {
+            // Will be called with valueParts = [,arg,arg,...], but we don't
+            // care that the first element is undefined.
+            if (valueParts.length === 2 && valueParts[1] === undefined)
+                return "";
+            var value = valueParts.join("");
+            return ' ' + name + '="' + __escape__(value) + '"';
+        }
+
+        var isArray = Array.isArray;
+
         function __loop__(iter, outputs, fn)
         {
             var iterOuts = [];
             outputs.push(iterOuts);
 
-            if (iter instanceof Array)
+            if (!iter)
+                return;
+
+            if (isArray(iter) || iter instanceof NodeList)
                 iter = new ArrayIterator(iter);
 
+            var value = null;
             try
             {
                 while (1)
                 {
-                    var value = iter.next();
+                    value = iter.next();
                     var itemOuts = [0,0];
                     iterOuts.push(itemOuts);
                     fn.apply(this, [value, itemOuts]);
@@ -233,7 +271,7 @@ DomplateTag.prototype =
             }
         }
 
-        var js = $.browser.msie ? 'var f = ' + fnBlock.join("") + ';f' : fnBlock.join("");
+        var js = fnBlock.join("");
         this.renderMarkup = eval(js);
     },
 
@@ -251,9 +289,9 @@ DomplateTag.prototype =
             {
                 for (var i = 0; i < child.parts.length; ++i)
                 {
-                    if (child.parts[i] instanceof Variable)
+                    if (child.parts[i] instanceof Variables)
                     {
-                        var name = child.parts[i].name;
+                        var name = child.parts[i].names[0];
                         var names = name.split(".");
                         args.push(names[0]);
                     }
@@ -271,12 +309,11 @@ DomplateTag.prototype =
             if (name != "class")
             {
                 var val = this.attrs[name];
-                topBlock.push(', " ', name, '=\\""');
-                addParts(val, ',', topBlock, info, true);
-                topBlock.push(', "\\""');
+                topBlock.push(',__attr__("', name, '",[');
+                addParts(val, ',', topBlock, info, false);
+                topBlock.push('])');
             }
         }
-
         if (this.listeners)
         {
             for (var i = 0; i < this.listeners.length; i += 2)
@@ -289,12 +326,12 @@ DomplateTag.prototype =
                 readPartNames(this.props[name], topOuts);
         }
 
-        if ("class" in this.attrs || this.classes)
+        if (this.attrs.hasOwnProperty("class") || this.classes)
         {
             topBlock.push(', " class=\\""');
-            if ("class" in this.attrs)
+            if (this.attrs.hasOwnProperty("class"))
                 addParts(this.attrs["class"], ',', topBlock, info, true);
-              topBlock.push(', " "');
+            topBlock.push(', " "');
             for (var name in this.classes)
             {
                 topBlock.push(', (');
@@ -306,7 +343,10 @@ DomplateTag.prototype =
         topBlock.push(',">"');
 
         this.generateChildMarkup(topBlock, topOuts, blocks, info);
-        topBlock.push(',"</', this.tagName, '>"');
+
+        // <br> element doesn't use end tag.
+        if (this.tagName != "br")
+            topBlock.push(',"</', this.tagName, '>"');
     },
 
     generateChildMarkup: function(topBlock, topOuts, blocks, info)
@@ -324,9 +364,9 @@ DomplateTag.prototype =
     addCode: function(topBlock, topOuts, blocks)
     {
         if (topBlock.length)
-            blocks.push('__code__.push(""', topBlock.join(""), ');');
+            blocks.push('__code__.push(""', topBlock.join(""), ');\n');
         if (topOuts.length)
-            blocks.push('__out__.push(', topOuts.join(","), ');');
+            blocks.push('__out__.push(', topOuts.join(","), ');\n');
         topBlock.splice(0, topBlock.length);
         topOuts.splice(0, topOuts.length);
     },
@@ -345,7 +385,7 @@ DomplateTag.prototype =
 
             map[name] = 1;
             var names = name.split(".");
-            blocks.push('var ', names[0] + ' = ' + '__in__.' + names[0] + ';');
+            blocks.push('var ', names[0] + ' = ' + '__in__.' + names[0] + ';\n');
         }
     },
 
@@ -361,46 +401,42 @@ DomplateTag.prototype =
         var nodeCount = this.generateDOM(path, blocks, this.domArgs);
 
         var fnBlock = ['(function (root, context, o'];
-
         for (var i = 0; i < path.staticIndex; ++i)
             fnBlock.push(', ', 's'+i);
-
         for (var i = 0; i < path.renderIndex; ++i)
             fnBlock.push(', ', 'd'+i);
 
-        fnBlock.push(') {');
+        fnBlock.push(') {\n');
         for (var i = 0; i < path.loopIndex; ++i)
-            fnBlock.push('var l', i, ' = 0;');
+            fnBlock.push('var l', i, ' = 0;\n');
         for (var i = 0; i < path.embedIndex; ++i)
-            fnBlock.push('var e', i, ' = 0;');
+            fnBlock.push('var e', i, ' = 0;\n');
 
         if (this.subject)
-            fnBlock.push('with (this) {');
+            fnBlock.push('with (this) {\n');
         if (this.context)
-            fnBlock.push('with (context) {');
+            fnBlock.push('with (context) {\n');
 
         fnBlock.push(blocks.join(""));
 
-        if (this.subject)
-            fnBlock.push('}');
         if (this.context)
-            fnBlock.push('}');
+            fnBlock.push('}\n');
+        if (this.subject)
+            fnBlock.push('}\n');
 
-        fnBlock.push('return ', nodeCount, ';');
-        fnBlock.push('})');
-
-        function __prop__(object, prop, value)
-        {
-            object[prop] = value;
-        }
+        fnBlock.push('return ', nodeCount, ';\n');
+        fnBlock.push('})\n');
 
         function __bind__(object, fn)
         {
-            return function(event) { return fn.apply(object, [event]); }
+            return function(event) { return fn.apply(object, [event]); };
         }
 
         function __link__(node, tag, args)
         {
+            if (!tag || !tag.tag)
+                return;
+
             tag.tag.compile();
 
             var domArgs = [node, tag.tag.context, 0];
@@ -410,44 +446,56 @@ DomplateTag.prototype =
             return tag.tag.renderDOM.apply(tag.tag.subject, domArgs);
         }
 
-        var self = this;
         function __loop__(iter, fn)
         {
+            if (!iter)
+                return 0;
+
             var nodeCount = 0;
             for (var i = 0; i < iter.length; ++i)
             {
                 iter[i][0] = i;
                 iter[i][1] = nodeCount;
                 nodeCount += fn.apply(this, iter[i]);
-                //ddd("nodeCount", nodeCount);
             }
             return nodeCount;
         }
 
+        // start at a given node |parent|, then index recursively into its children using
+        // arguments 2, 3, ... The primary purpose of the 'path' is to name variables in the
+        // generated code
         function __path__(parent, offset)
         {
-            //ddd("offset", arguments[2])
             var root = parent;
 
             for (var i = 2; i < arguments.length; ++i)
             {
                 var index = arguments[i];
+
                 if (i == 3)
                     index += offset;
 
-                if (index == -1)
+                if (index == -1)  // then walk up the tree
                     parent = parent.parentNode;
                 else
                     parent = parent.childNodes[index];
             }
 
-            //ddd(arguments[2], root, parent);
             return parent;
         }
 
-        var js = $.browser.msie ? 'var f = ' + fnBlock.join("") + ';f' : fnBlock.join("");
-        //ddd(js.replace(/(\;|\{)/g, "$1\n"));
-        this.renderDOM = eval(js);
+        var js = fnBlock.join("");
+        // Exceptions on this line are often in the eval
+        try
+        {
+            this.renderDOM = eval(js);
+        }
+        catch(exc)
+        {
+            var chained =  new Error("Domplate.renderDom FAILS");
+            chained.cause = {exc:exc, js: js};
+            throw chained;
+        }
     },
 
     generateDOM: function(path, blocks, args)
@@ -461,11 +509,9 @@ DomplateTag.prototype =
             {
                 var val = this.listeners[i+1];
                 var arg = generateArg(val, path, args);
-                if (window.addEventListener) {
-                    blocks.push('node.addEventListener("', this.listeners[i], '", __bind__(this, ', arg, '), false);');
-                } else if (window.attachEvent) {
-                    blocks.push('node.attachEvent("', this.listeners[i], '", __bind__(this, ', arg, '));');
-                }
+
+                blocks.push('node.addEventListener("', this.listeners[i],
+                    '", __bind__(this, ', arg, '), false);\n');
             }
         }
 
@@ -475,8 +521,7 @@ DomplateTag.prototype =
             {
                 var val = this.props[name];
                 var arg = generateArg(val, path, args);
-                blocks.push("__prop__(node, '" + name + "', " + arg + ");");
-                //blocks.push('node.', name, ' = ', arg, ';');
+                blocks.push("node.", name, " = ", arg, ";\n");
             }
         }
 
@@ -487,10 +532,13 @@ DomplateTag.prototype =
     generateNodePath: function(path, blocks)
     {
         blocks.push("var node = __path__(root, o");
+
+        // this will be a sum of integers as a string which will be summed in the eval,
+        // then passed to __path__
         for (var i = 0; i < path.length; ++i)
             blocks.push(",", path[i]);
-        blocks.push(");");
-        //blocks.push("try {ddd(l0,l1,l2); } catch (exc) {}");
+
+        blocks.push(");\n");
     },
 
     generateChildDOM: function(path, blocks, args)
@@ -505,10 +553,21 @@ DomplateTag.prototype =
                 path[path.length-1] += '+1';
         }
         path.pop();
+    },
+
+    /**
+     * We are just hiding from javascript.options.strict. For some reasons it's ok if
+     * we return undefined here.
+     *
+     * @return null or undefined or possibly a context.
+     */
+    getContext: function()
+    {
+        return this.context;
     }
 };
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 DomplateEmbed.prototype = copyObject(DomplateTag.prototype,
 {
@@ -544,7 +603,7 @@ DomplateEmbed.prototype = copyObject(DomplateTag.prototype,
 
         blocks.push('__link__(');
         addParts(this.value, '', blocks, info);
-        blocks.push(', __code__, __out__, {');
+        blocks.push(', __code__, __out__, {\n');
 
         var lastName = null;
         for (var name in this.attrs)
@@ -558,11 +617,10 @@ DomplateEmbed.prototype = copyObject(DomplateTag.prototype,
             addParts(val, '', blocks, info);
         }
 
-        blocks.push('});');
-        //this.generateChildMarkup(topBlock, topOuts, blocks, info);
+        blocks.push('});\n');
     },
 
-    generateDOM: function(path, blocks, args)
+    generateDOM: function(path, blocks, args)  // XXXjjb args not used?
     {
         var embedName = 'e'+path.embedIndex++;
 
@@ -570,13 +628,13 @@ DomplateEmbed.prototype = copyObject(DomplateTag.prototype,
 
         var valueName = 'd' + path.renderIndex++;
         var argsName = 'd' + path.renderIndex++;
-        blocks.push(embedName + ' = __link__(node, ', valueName, ', ', argsName, ');');
+        blocks.push(embedName + ' = __link__(node, ', valueName, ', ', argsName, ');\n');
 
         return embedName;
     }
 });
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 DomplateLoop.prototype = copyObject(DomplateTag.prototype,
 {
@@ -607,12 +665,25 @@ DomplateLoop.prototype = copyObject(DomplateTag.prototype,
     {
         this.addCode(topBlock, topOuts, blocks);
 
+        // We are in a FOR loop and our this.iter property contains
+        // either a simple function name as a string or a Parts object
+        // with only ONE Variables object. There is only one variables object
+        // as the FOR argument can contain only ONE valid function callback
+        // with optional arguments or just one variable. Allowed arguments are
+        // func or $var or $var.sub or $var|func or $var1,$var2|func or $var|func1|func2 or $var1,$var2|func1|func2
         var iterName;
         if (this.iter instanceof Parts)
         {
+            // We have a function with optional aruments or just one variable
             var part = this.iter.parts[0];
-            iterName = part.name;
 
+            // Join our function arguments or variables
+            // If the user has supplied multiple variables without a function
+            // this will create an invalid result and we should probably add an
+            // error message here or just take the first variable
+            iterName = part.names.join(",");
+
+            // Nest our functions
             if (part.format)
             {
                 for (var i = 0; i < part.format.length; ++i)
@@ -620,12 +691,17 @@ DomplateLoop.prototype = copyObject(DomplateTag.prototype,
             }
         }
         else
+        {
+            // We have just a simple function name without any arguments
             iterName = this.iter;
+        }
 
-        blocks.push('__loop__.apply(this, [', iterName, ', __out__, function(', this.varName, ', __out__) {');
+        blocks.push('__loop__.apply(this, [', iterName, ', __out__, function(',
+            this.varName, ', __out__) {\n');
         this.generateChildMarkup(topBlock, topOuts, blocks, info);
         this.addCode(topBlock, topOuts, blocks);
-        blocks.push('}]);');
+
+        blocks.push('}]);\n');
     },
 
     generateDOM: function(path, blocks, args)
@@ -657,15 +733,16 @@ DomplateLoop.prototype = copyObject(DomplateTag.prototype,
 
         path[path.length-1] = basePath+'+'+loopName;
 
-        //blocks.push("console.group('", loopName, "');");
-        blocks.push(loopName,' = __loop__.apply(this, [', iterName, ', function(', counterName,',',loopName);
+        blocks.push(loopName,' = __loop__.apply(this, [', iterName, ', function(',
+            counterName,',',loopName);
+
         for (var i = 0; i < path.renderIndex; ++i)
             blocks.push(',d'+i);
-        blocks.push(') {');
+
+        blocks.push(') {\n');
         blocks.push(subBlocks.join(""));
-        blocks.push('return ', nodeCount, ';');
-        blocks.push('}]);');
-        //blocks.push("console.groupEnd();");
+        blocks.push('return ', nodeCount, ';\n');
+        blocks.push('}]);\n');
 
         path.renderIndex = preIndex;
 
@@ -673,11 +750,11 @@ DomplateLoop.prototype = copyObject(DomplateTag.prototype,
     }
 });
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-function Variable(name, format)
+function Variables(names, format)
 {
-    this.name = name;
+    this.names = names;
     this.format = format;
 }
 
@@ -686,11 +763,12 @@ function Parts(parts)
     this.parts = parts;
 }
 
-// ************************************************************************************************
+// ********************************************************************************************* //
 
 function parseParts(str)
 {
-    var re = /\$([_A-Za-z][_A-Za-z0-9.|]*)/g;
+    // Match $var or $var.sub or $var|func or $var1,$var2|func or $var|func1|func2 or $var1,$var2|func1|func2
+    var re = /\$([_A-Za-z][_A-Za-z0-9.]*(,\$[_A-Za-z][_A-Za-z0-9.]*)*([_A-Za-z0-9.|]*))/g;
     var index = 0;
     var parts = [];
 
@@ -701,14 +779,23 @@ function parseParts(str)
         if (pre)
             parts.push(pre);
 
-        var expr = m[1].split("|");
-        parts.push(new Variable(expr[0], expr.slice(1)));
+        var segs = m[1].split("|");
+        var vars = segs[0].split(",$");
+
+        // Assemble the variables object and append to buffer
+        parts.push(new Variables(vars, segs.slice(1)));
+
         index = re.lastIndex;
     }
 
+    // No matches found at all so we return the whole string
     if (!index)
-        return str;
+    {
+        // Double quotes in strings need to be escaped (see issue 6710)
+        return str.replace("\\", "\\\\", "g").replace('"', '\\"', "g");
+    }
 
+    // If we have data after our last matched index we append it here as the final step
     var post = str.substr(index);
     if (post)
         parts.push(post);
@@ -738,8 +825,8 @@ function readPartNames(val, vars)
         for (var i = 0; i < val.parts.length; ++i)
         {
             var part = val.parts[i];
-            if (part instanceof Variable)
-                vars.push(part.name);
+            if (part instanceof Variables)
+                vars.push(part.names[0]);
         }
     }
 }
@@ -752,7 +839,7 @@ function generateArg(val, path, args)
         for (var i = 0; i < val.parts.length; ++i)
         {
             var part = val.parts[i];
-            if (part instanceof Variable)
+            if (part instanceof Variables)
             {
                 var varName = 'd'+path.renderIndex++;
                 if (part.format)
@@ -784,9 +871,9 @@ function addParts(val, delim, block, info, escapeIt)
         for (var i = 0; i < val.parts.length; ++i)
         {
             var part = val.parts[i];
-            if (part instanceof Variable)
+            if (part instanceof Variables)
             {
-                var partName = part.name;
+                var partName = part.names.join(",");
                 if (part.format)
                 {
                     for (var j = 0; j < part.format.length; ++j)
@@ -820,18 +907,15 @@ function isTag(obj)
     return (typeof(obj) == "function" || obj instanceof Function) && !!obj.tag;
 }
 
-function isDomplate(obj)
-{
-    return (typeof(obj) == "object") && !!obj.render;
-}
-
 function creator(tag, cons)
 {
-    var fn = new Function(
-        "var tag = arguments.callee.tag;" +
-        "var cons = arguments.callee.cons;" +
-        "var newTag = new cons();" +
-        "return newTag.merge(arguments, tag);");
+    var fn = function()
+    {
+        var tag = fn.tag;
+        var cons = fn.cons;
+        var newTag = new cons();
+        return newTag.merge(arguments, tag);
+    };
 
     fn.tag = tag;
     fn.cons = cons;
@@ -840,7 +924,7 @@ function creator(tag, cons)
     return fn;
 }
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 function copyArray(oldArray)
 {
@@ -865,7 +949,7 @@ function extend(l, r)
         l[n] = r[n];
 }
 
-// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 function ArrayIterator(array)
 {
@@ -887,44 +971,83 @@ this.$break = function()
     throw StopIteration;
 };
 
-// ************************************************************************************************
+// ********************************************************************************************* //
 
+/**
+ * @object Domplate Renderer object implements API for template rendering.
+ * Every Domplate template inherits this APIs (through extend API) and should use
+ * them every time it's rendered into DOM.
+ */
 var Renderer =
+/** @lends Renderer */
 {
     renderHTML: function(args, outputs, self)
     {
-        var code = [];
-        var markupArgs = [code, this.tag.context, args, outputs];
-        markupArgs.push.apply(markupArgs, this.tag.markupArgs);
-        this.tag.renderMarkup.apply(self ? self : this.tag.subject, markupArgs);
-        return code.join("");
+        try
+        {
+            var code = [];
+            var markupArgs = [code, this.tag.getContext(), args, outputs];
+            markupArgs.push.apply(markupArgs, this.tag.markupArgs);
+            this.tag.renderMarkup.apply(self ? self : this.tag.subject, markupArgs);
+            return code.join("");
+        }
+        catch (e)
+        {
+        }
     },
 
-    insertRows: function(args, before, self)
+    /**
+     * This method is used when rendering (inserting) table rows into an existing
+     * table (i.e. tbody) element.
+     *
+     * @param {Object} args Template input object (can be null).
+     * @param {Node} after The row after which the new row will be inserted.
+     *      If <tbody> element is passed the new row will be inserted at the end.
+     * @param {Template} self Reference to the template object (can be null).
+     */
+    insertRows: function(args, after, self)
     {
+        if (!args)
+            args = {};
+
         this.tag.compile();
 
         var outputs = [];
         var html = this.renderHTML(args, outputs, self);
 
-        var doc = before.ownerDocument;
-        var tableParent = doc.createElement("div"); // Workaround: IE doesn't allow to set TABLE.innerHTML
-        tableParent.innerHTML = "<table>" + html + "</table>";
+        var doc = after.ownerDocument;
+        var table = doc.createElement("table");
+        table.innerHTML = html;
 
-        var tbody = tableParent.firstChild.firstChild;
-        var parent = before.tagName.toLowerCase() == "tr" ? before.parentNode : before;
-        var after = before.tagName.toLowerCase() == "tr" ? before.nextSibling : null;
+        var tbody = table.firstChild;
+        var localName = after.localName.toLowerCase();
+        var parent = (localName == "tr") ? after.parentNode : after;
+        var referenceElement = (localName == "tr") ? after.nextSibling : null;
 
-        var firstRow = tbody.firstChild, lastRow;
+        var firstRow = tbody.firstChild;
+        var lastRow = null;
         while (tbody.firstChild)
         {
             lastRow = tbody.firstChild;
-            if (after)
-                parent.insertBefore(lastRow, after);
+            if (referenceElement)
+                parent.insertBefore(lastRow, referenceElement);
             else
                 parent.appendChild(lastRow);
         }
 
+        // To save the next poor soul:
+        // In order to properly apply properties and event handlers on elements
+        // constructed by a FOR tag, the tag needs to be able to iterate up and
+        // down the tree. If FOR is the root element, as is the case with
+        // many 'insertRows' calls, it will need to iterator over portions of the
+        // new parent.
+        //
+        // To achieve this end, __path__ defines the -1 operator which allows
+        // parent traversal. When combined with the offset that we calculate
+        // below we are able to iterate over the elements.
+        //
+        // This fails when applied to a non-loop element as non-loop elements
+        // do not generate to proper path to bounce up and down the tree.
         var offset = 0;
         if (this.tag.isLoop)
         {
@@ -933,7 +1056,8 @@ var Renderer =
                 ++offset;
         }
 
-        var domArgs = [firstRow, this.tag.context, offset];
+        // strict warning: this.tag.context undefined
+        var domArgs = [firstRow, this.tag.getContext(), offset];
         domArgs.push.apply(domArgs, this.tag.domArgs);
         domArgs.push.apply(domArgs, outputs);
 
@@ -941,50 +1065,78 @@ var Renderer =
         return [firstRow, lastRow];
     },
 
-    insertAfter: function(args, before, self)
+    insertBefore: function(args, before, self)
     {
+        return this.insertNode(
+                args, before.ownerDocument,
+                function beforeInserter(frag) {
+                    before.parentNode.insertBefore(frag, before);
+                },
+                self);
+    },
+
+    insertAfter: function(args, after, self)
+    {
+        return this.insertNode(
+                args, after.ownerDocument,
+                function(frag) {
+                    after.parentNode.insertBefore(frag, after.nextSibling);
+                },
+                self);
+    },
+
+    insertNode: function(args, doc, inserter, self)
+    {
+        if (!args)
+            args = {};
+
         this.tag.compile();
 
         var outputs = [];
         var html = this.renderHTML(args, outputs, self);
 
-        var doc = before.ownerDocument;
         var range = doc.createRange();
-        range.selectNode(doc.body);
+
+        // if doc starts with a Text node, domplate fails because the fragment starts
+        // with a text node. That must be a gecko bug, but let's just workaround it since
+        // we want to switch to innerHTML anyway
+        var aDiv = doc.getElementsByTagName("div").item(0);
+        range.setStartBefore(aDiv);
+
+        // TODO replace with standard innerHTML
         var frag = range.createContextualFragment(html);
 
         var root = frag.firstChild;
-        if (before.nextSibling)
-            before.parentNode.insertBefore(frag, before.nextSibling);
-        else
-            before.parentNode.appendChild(frag);
+        root = inserter(frag) || root;
 
         var domArgs = [root, this.tag.context, 0];
         domArgs.push.apply(domArgs, this.tag.domArgs);
         domArgs.push.apply(domArgs, outputs);
 
-        this.tag.renderDOM.apply(self ? self : (this.tag.subject ? this.tag.subject : null),
-            domArgs);
+        this.tag.renderDOM.apply(self ? self : this.tag.subject, domArgs);
 
         return root;
     },
 
     replace: function(args, parent, self)
     {
+        if (!args)
+            args = {};
+
         this.tag.compile();
 
         var outputs = [];
         var html = this.renderHTML(args, outputs, self);
 
         var root;
-        if (parent.nodeType == 1)
+        if (parent.nodeType == Node.ELEMENT_NODE)
         {
             parent.innerHTML = html;
             root = parent.firstChild;
         }
         else
         {
-            if (!parent || parent.nodeType != 9)
+            if (!parent || parent.nodeType != Node.DOCUMENT_NODE)
                 parent = document;
 
             if (!womb || womb.ownerDocument != parent)
@@ -998,13 +1150,28 @@ var Renderer =
         var domArgs = [root, this.tag.context, 0];
         domArgs.push.apply(domArgs, this.tag.domArgs);
         domArgs.push.apply(domArgs, outputs);
-        this.tag.renderDOM.apply(self ? self : this.tag.subject, domArgs);
+
+        try
+        {
+            this.tag.renderDOM.apply(self ? self : this.tag.subject, domArgs);
+        }
+        catch(exc)
+        {
+            var chained =  new Error("Domplate.renderDom FAILS: "+exc);
+            chained.cause = {exc: exc, renderDOM: this.tag.renderDOM.toSource(),
+                domplate: this, domArgs: domArgs, self: self};
+
+            throw chained;
+        }
 
         return root;
     },
 
     append: function(args, parent, self)
     {
+        if (!args)
+            args = {};
+
         this.tag.compile();
 
         var outputs = [];
@@ -1021,65 +1188,47 @@ var Renderer =
         var domArgs = [root, this.tag.context, 0];
         domArgs.push.apply(domArgs, this.tag.domArgs);
         domArgs.push.apply(domArgs, outputs);
+
         this.tag.renderDOM.apply(self ? self : this.tag.subject, domArgs);
 
         return root;
-    },
-
-    insertCols: function(args, parent, self)
-    {
-        this.tag.compile();
-
-        var outputs = [];
-        var html = this.renderHTML(args, outputs, self);
-
-        var table = parent.ownerDocument.createElement("table");
-        var womb = parent.ownerDocument.createElement("tr");
-        table.appendChild(womb);
-        womb.innerHTML = html;
-
-        var firstCol = womb.firstChild;
-        while (womb.firstChild)
-            parent.appendChild(womb.firstChild);
-
-        // See insertRows for comment.
-        var offset = 0;
-        if (this.tag.isLoop)
-        {
-            var node = firstCol.parentNode.firstChild;
-            for (; node && node != firstCol; node = node.nextSibling)
-                ++offset;
-        }
-
-        var domArgs = [firstCol, this.tag.context, offset];
-        domArgs.push.apply(domArgs, this.tag.domArgs);
-        domArgs.push.apply(domArgs, outputs);
-        this.tag.renderDOM.apply(self ? self : this.tag.subject, domArgs);
-
-        return firstCol;
     }
 };
 
-// ************************************************************************************************
+// ********************************************************************************************* //
 
 function defineTags()
 {
     for (var i = 0; i < arguments.length; ++i)
     {
         var tagName = arguments[i];
-        var fn = new Function("var newTag = new Domplate.DomplateTag('"+tagName+"'); return newTag.merge(arguments);");
-
+        var fn = createTagHandler(tagName);
         var fnName = tagName.toUpperCase();
-        Domplate[fnName] = fn;
+
+        // xxxHonza: Domplate is injected into FBL namespace only for backward
+        // compatibility with extensions.
+        Domplate[fnName] = FBL[fnName]= fn;
+    }
+
+    function createTagHandler(tagName)
+    {
+        return function() {
+            var newTag = new this.DomplateTag(tagName);
+            return newTag.merge(arguments);
+        };
     }
 }
 
 defineTags(
-    "a", "button", "br", "canvas", "col", "colgroup", "div", "fieldset", "form", "h1", "h2", "h3", "hr",
-     "img", "input", "label", "legend", "li", "ol", "optgroup", "option", "p", "pre", "select",
-    "span", "strong", "table", "tbody", "td", "textarea", "tfoot", "th", "thead", "tr", "tt", "ul", "code",
-    "iframe", "canvas"
+    "a", "button", "br", "canvas", "col", "colgroup", "div", "fieldset", "form", "h1", "h2",
+    "h3", "hr", "img", "input", "label", "legend", "li", "ol", "optgroup", "option", "p",
+    "pre", "select", "b", "span", "strong", "table", "tbody", "td", "textarea", "tfoot", "th",
+    "thead", "tr", "tt", "ul", "iframe", "code", "style",
+
+    // HTML5
+    "article", "aside", "audio", "bb", "command", "datagrid", "datalist", "details",
+    "dialog", "embed", "eventsource", "figure", "footer", "keygen", "mark", "meter", "nav",
+    "output", "progress", "ruby", "rp", "rt", "section", "source", "time", "video"
 );
 
 }).apply(Domplate);
-
