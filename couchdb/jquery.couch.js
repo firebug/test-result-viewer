@@ -250,11 +250,10 @@
             alert("please provide an eachApp function for allApps()");
           }
         },
-        openDoc: function(docId, options, ajaxOptions) {
+        openDoc: function(docId, options) {
           ajax({url: this.uri + encodeDocId(docId) + encodeOptions(options)},
             options,
-            "The document could not be retrieved",
-            ajaxOptions
+            "The document could not be retrieved"
           );
         },
         saveDoc: function(doc, options) {
@@ -306,8 +305,8 @@
             "The document could not be deleted"
           );
         },
-        copyDoc: function(doc, options, ajaxOptions) {
-          ajaxOptions = $.extend(ajaxOptions, {
+        copyDoc: function(doc, options) {
+            options = $.extend(options, {
             complete: function(req) {
               var resp = $.httpData(req, "json");
               if (req.status == 201) {
@@ -328,8 +327,7 @@
                    encodeOptions({rev: doc._rev})
             },
             options,
-            "The document could not be copied",
-            ajaxOptions
+            "The document could not be copied"
           );
         },
         query: function(mapFun, reduceFun, language, options) {
@@ -392,23 +390,21 @@
             options, "An error occurred accessing the view"
           );
         },
-        getDbProperty: function(propName, options, ajaxOptions) {
+        getDbProperty: function(propName, options) {
           ajax({url: this.uri + propName + encodeOptions(options)},
             options,
-            "The property could not be retrieved",
-            ajaxOptions
+            "The property could not be retrieved"
           );
         },
 
-        setDbProperty: function(propName, propValue, options, ajaxOptions) {
+        setDbProperty: function(propName, propValue, options) {
           ajax({
             type: "PUT", 
             url: this.uri + propName + encodeOptions(options),
             data : JSON.stringify(propValue)
           },
             options,
-            "The property could not be updated",
-            ajaxOptions
+            "The property could not be updated"
           );
         }
       };
@@ -453,14 +449,14 @@
 
   });
 
-  function ajax(obj, options, errorMessage, ajaxOptions) {
+  function ajax(obj, options, errorMessage) {
     options = $.extend({successStatus: 200}, options);
     errorMessage = errorMessage || "Unknown error";
 
-    $.ajax($.extend($.extend({
+    $.ajax($.extend({
       type: "GET", dataType: "json",
       complete: function(req) {
-        var resp = $.httpData(req, "json");
+        var resp = $.ajax.httpData(req, "json");
         if (req.status == options.successStatus) {
           if (options.success) options.success(resp);
         } else if (options.error) {
@@ -469,7 +465,7 @@
           alert(errorMessage + ": " + resp.reason);
         }
       }
-    }, obj), ajaxOptions));
+    }, obj));
   }
 
   // Convert a options object to an url query string.
