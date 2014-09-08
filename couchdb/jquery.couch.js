@@ -13,6 +13,23 @@
 (function($) {
   $.couch = $.couch || {};
 
+  var httpData = $.httpData || function(xhr, type, s) {
+    var ct = xhr.getResponseHeader("content-type") || "";
+    var xml = type === "xml" || !type && ct.indexOf("xml") >= 0;
+    var data = xml ? xhr.responseXML : xhr.responseText;
+    if (xml && data.documentElement.nodeName === "parsererror")
+      $.error("parsererror");
+    if (s && s.dataFilter)
+      data = s.dataFilter(data, type);
+    if (typeof data === "string") {
+      if (type === "json" || !type && ct.indexOf("json") >= 0)
+        data = $.parseJSON( data );
+      else if (type === "script" || !type && ct.indexOf("javascript") >= 0)
+        $.globalEval( data );
+    }
+    return data;
+  };
+
   function encodeDocId(docID) {
     var parts = docID.split("/");
     if (parts[0] == "_design") {
@@ -88,7 +105,7 @@
       $.ajax({
         type: "GET", url: this.urlPrefix + "/_session",
         complete: function(req) {
-          var resp = $.httpData(req, "json");
+          var resp = httpData(req, "json");
           if (req.status == 200) {
             if (options.success) options.success(resp);
           } else if (options.error) {
@@ -124,7 +141,7 @@
         type: "POST", url: this.urlPrefix + "/_session", dataType: "json",
         data: {name: options.name, password: options.password},
         complete: function(req) {
-          var resp = $.httpData(req, "json");
+          var resp = httpData(req, "json");
           if (req.status == 200) {
             if (options.success) options.success(resp);
           } else if (options.error) {
@@ -141,7 +158,7 @@
         type: "DELETE", url: this.urlPrefix + "/_session", dataType: "json",
         username : "_", password : "_",
         complete: function(req) {
-          var resp = $.httpData(req, "json");
+          var resp = httpData(req, "json");
           if (req.status == 200) {
             if (options.success) options.success(resp);
           } else if (options.error) {
@@ -270,7 +287,7 @@
             contentType: "application/json",
             dataType: "json", data: toJSON(doc),
             complete: function(req) {
-              var resp = $.httpData(req, "json");
+              var resp = httpData(req, "json");
               if (req.status == 201) {
                 doc._id = resp.id;
                 doc._rev = resp.rev;
@@ -308,7 +325,7 @@
         copyDoc: function(doc, options) {
             options = $.extend(options, {
             complete: function(req) {
-              var resp = $.httpData(req, "json");
+              var resp = httpData(req, "json");
               if (req.status == 201) {
                 doc._id = resp.id;
                 doc._rev = resp.rev;
@@ -456,7 +473,7 @@
     $.ajax($.extend({
       type: "GET", dataType: "json",
       complete: function(req) {
-        var resp = $.ajax.httpData(req, "json");
+        var resp = httpData(req, "json");
         if (req.status == options.successStatus) {
           if (options.success) options.success(resp);
         } else if (options.error) {
