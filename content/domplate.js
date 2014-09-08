@@ -1207,9 +1207,7 @@ function defineTags()
         var fn = createTagHandler(tagName);
         var fnName = tagName.toUpperCase();
 
-        // xxxHonza: Domplate is injected into FBL namespace only for backward
-        // compatibility with extensions.
-        Domplate[fnName] = FBL[fnName]= fn;
+        Domplate[fnName] = fn;
     }
 
     function createTagHandler(tagName)
