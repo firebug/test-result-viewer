@@ -2,6 +2,8 @@
 
 var Domplate = {};
 
+(function(){
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 function DomplateTag(tagName)
